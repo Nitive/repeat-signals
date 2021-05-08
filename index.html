@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+    <title>Repeat Signals App</title>
+  </head>
+  <body class="p-4 bg-gradient-to-r from-yellow-400 via-red-500 to-pink-500">
+    <div class="bg-gray-100 rounded-xl p-6 divide-y divide-gray-300">
+      <h1 class="text-xl font-semibold pb-3">Repeat Signals</h1>
+      <div class="py-2">
+        <div class="text-lg font-semibold pb-2">Signals</div>
+        <label>
+          <input data-audio-id="pi-bip" type="checkbox" />
+          Pi-bip
+        </label>
+        <audio
+          class="js-audio"
+          data-audio-id="pi-bip"
+          src="audio/pi-bip.m4a"
+        ></audio>
+      </div>
+
+      <div class="py-2">
+        <div class="text-lg font-semibold pb-2">Interval</div>
+        <input
+          class="js-repeat-interval-input"
+          type="text"
+          value="15 seconds"
+        />
+        <div>
+          <button
+            class="js-interval-example rounded-lg px-2 py-1 mt-2 bg-gray-500 text-white"
+          >
+            15 seconds
+          </button>
+          <button
+            class="js-interval-example rounded-lg px-2 py-1 mt-2 bg-gray-500 text-white"
+          >
+            1 minute
+          </button>
+          <button
+            class="js-interval-example rounded-lg px-2 py-1 mt-2 bg-gray-500 text-white"
+          >
+            5 minutes
+          </button>
+          <button
+            class="js-interval-example rounded-lg px-2 py-1 mt-2 bg-gray-500 text-white"
+          >
+            15 minutes
+          </button>
+          <button
+            class="js-interval-example rounded-lg px-2 py-1 mt-2 bg-gray-500 text-white"
+          >
+            30 minutes
+          </button>
+          <button
+            class="js-interval-example rounded-lg px-2 py-1 mt-2 bg-gray-500 text-white"
+          >
+            1 hour
+          </button>
+        </div>
+      </div>
+
+      <div class="pt-2">
+        <button
+          class="js-play-pause-button text-base font-medium rounded-lg p-3 bg-pink-500 text-white"
+        >
+          Play
+        </button>
+        <div class="js-countdown"></div>
+      </div>
+    </div>
+    <script type="module">
+      import { createStoreon } from "https://unpkg.com/storeon@3.1.4/index.js"
+
+      const reducer = (store) => {
+        store.on("@init", () => ({
+          audio: "paused", // 'playing' | 'paused'
+        }))
+
+        store.on("play", (state, countdownSeconds) => ({
+          ...state,
+          countdownSeconds,
+          audio: "playing",
+        }))
+
+        store.on("pause", (state) => ({
+          ...state,
+          audio: "paused",
+        }))
+
+        store.on("second-elapsed", (state) => ({
+          ...state,
+          countdownSeconds: state.countdownSeconds - 1,
+        }))
+      }
+
+      const store = createStoreon([reducer])
+
+      function formatInterval(seconds) {
+        const hours = Math.floor(seconds / 60 / 60)
+        const min = Math.floor((seconds % (60 * 60)) / 60)
+        const sec = seconds % 60
+
+        return [
+          hours === 1 && `1 hour`,
+          hours > 1 && `${hours} hours`,
+          min === 1 && `1 minute`,
+          min > 1 && `${min} minutes`,
+          sec === 1 && `1 second`,
+          sec !== 1 && `${sec} seconds`,
+        ]
+          .filter(Boolean)
+          .join(" ")
+      }
+
+      const $ = document.querySelector.bind(document)
+      const $$ = document.querySelectorAll.bind(document)
+
+      function getCheckedAudios() {
+        return Array.from($$(".js-audio")).filter(
+          (audio) => $(`input[data-audio-id=${audio.dataset.audioId}]`).checked
+        )
+      }
+
+      function getSecondsInInterval(interval) {
+        if (["second", "seconds"].includes(interval)) {
+          return 1
+        }
+
+        if (["minute", "minutes"].includes(interval)) {
+          return 60
+        }
+
+        if (["hour", "hours"].includes(interval)) {
+          return 60 * 60
+        }
+
+        throw new Error(`Bad interval ${interval}`)
+      }
+
+      function parseRepeatInterval() {
+        const unparsed = $(".js-repeat-interval-input").value.trim()
+        const [num, interval] = unparsed.split(" ")
+        const parsedNum = Number(num)
+
+        if (isNaN(parsedNum)) {
+          throw new Error(
+            `Bad repeat interval ${unparsed}: could not parse number ${num}`
+          )
+        }
+
+        if (
+          !["second", "seconds", "minute", "minutes", "hour", "hours"].includes(
+            interval
+          )
+        ) {
+          throw new Error(
+            `Bad repeat interval ${unparsed}: could not parse interval ${interval}`
+          )
+        }
+
+        return parsedNum * getSecondsInInterval(interval)
+      }
+
+      function play() {
+        try {
+          const repeatInterval = parseRepeatInterval()
+          const signals = getCheckedAudios()
+          if (signals.length === 0) {
+            store.dispatch("pause")
+            alert("No signals selected")
+            return
+          }
+          const randomSignal =
+            signals[Math.floor(Math.random() * signals.length)]
+          randomSignal.currentTime = 0
+          randomSignal.play()
+          store.dispatch("play", repeatInterval)
+        } catch (err) {
+          alert(err)
+        }
+      }
+
+      $(".js-play-pause-button").addEventListener("click", () => {
+        if (store.get().audio === "playing") {
+          store.dispatch("pause")
+        } else if (store.get().audio === "paused") {
+          play()
+        }
+      })
+
+      $$(".js-interval-example").forEach((b) => {
+        b.addEventListener("click", (e) => {
+          $(".js-repeat-interval-input").value = e.target.textContent.trim()
+        })
+      })
+
+      function onChange(selector, callback) {
+        let prevPartialState = selector(store.get())
+        store.on("@changed", (state) => {
+          let nextPartialState = selector(state)
+          if (
+            JSON.stringify(nextPartialState) !==
+            JSON.stringify(prevPartialState)
+          ) {
+            prevPartialState = nextPartialState
+            callback(nextPartialState)
+          }
+        })
+      }
+
+      // Pause audios when state.audio changes to paused
+      onChange(
+        (state) => state.audio,
+        (audio) => {
+          if (audio === "paused") {
+            $$(".js-audio").forEach((audio) => {
+              audio.pause()
+              audio.currentTime = 0
+            })
+          }
+        }
+      )
+
+      // Change button text when state.audio changes
+      onChange(
+        (state) => state.audio,
+        (audio) => {
+          $(".js-play-pause-button").textContent =
+            audio === "paused" ? "Play" : "Pause"
+        }
+      )
+
+      // Change countdown when state.audio or state.countdown changes
+      onChange(
+        (state) => ({
+          audio: state.audio,
+          countdownSeconds: state.countdownSeconds,
+        }),
+        ({ audio, countdownSeconds }) => {
+          if (audio === "paused") {
+            $(".js-countdown").textContent = ""
+          }
+
+          if (audio === "playing") {
+            $(".js-countdown").textContent = `Next play in ${formatInterval(
+              countdownSeconds
+            )}`
+          }
+        }
+      )
+
+      // Play again when countdown went to zero
+      onChange(
+        (state) => ({
+          audio: state.audio,
+          countdownSeconds: state.countdownSeconds,
+        }),
+        ({ audio, countdownSeconds }) => {
+          if (audio === "playing" && countdownSeconds === 0) {
+            play()
+          }
+        }
+      )
+
+      setInterval(() => {
+        const state = store.get()
+        if (state.audio === "playing" && state.countdownSeconds > 0) {
+          store.dispatch("second-elapsed")
+        }
+      }, 1000)
+    </script>
+  </body>
+</html>
