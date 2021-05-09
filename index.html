@@ -69,7 +69,7 @@
 
       <div class="pt-2">
         <button
-          class="js-play-pause-button text-base font-medium rounded-lg p-3 bg-pink-500 text-white"
+          class="js-play-stop-button text-base font-medium rounded-lg p-3 bg-pink-500 text-white"
         >
           Play
         </button>
@@ -81,23 +81,24 @@
 
       const reducer = (store) => {
         store.on("@init", () => ({
-          audio: "paused", // 'playing' | 'paused'
+          audio: "stopped", // 'playing' | 'stopped'
         }))
 
-        store.on("play", (state, countdownSeconds) => ({
+        store.on("play", (state, { repeatInterval, now }) => ({
           ...state,
-          countdownSeconds,
+          countdownSeconds: repeatInterval,
+          countdownEndTime: now + repeatInterval * 1000,
           audio: "playing",
         }))
 
-        store.on("pause", (state) => ({
+        store.on("stop", (state) => ({
           ...state,
-          audio: "paused",
+          audio: "stopped",
         }))
 
-        store.on("second-elapsed", (state) => ({
+        store.on("second-elapsed", (state, { now }) => ({
           ...state,
-          countdownSeconds: state.countdownSeconds - 1,
+          countdownSeconds: Math.round((state.countdownEndTime - now) / 1000),
         }))
       }
 
@@ -174,7 +175,7 @@
           const repeatInterval = parseRepeatInterval()
           const signals = getCheckedAudios()
           if (signals.length === 0) {
-            store.dispatch("pause")
+            store.dispatch("stop")
             alert("No signals selected")
             return
           }
@@ -182,16 +183,16 @@
             signals[Math.floor(Math.random() * signals.length)]
           randomSignal.currentTime = 0
           randomSignal.play()
-          store.dispatch("play", repeatInterval)
+          store.dispatch("play", { repeatInterval, now: Date.now() })
         } catch (err) {
           alert(err)
         }
       }
 
-      $(".js-play-pause-button").addEventListener("click", () => {
+      $(".js-play-stop-button").addEventListener("click", () => {
         if (store.get().audio === "playing") {
-          store.dispatch("pause")
-        } else if (store.get().audio === "paused") {
+          store.dispatch("stop")
+        } else if (store.get().audio === "stopped") {
           play()
         }
       })
@@ -216,11 +217,11 @@
         })
       }
 
-      // Pause audios when state.audio changes to paused
+      // Stop audios when state.audio changes to stopped
       onChange(
         (state) => state.audio,
         (audio) => {
-          if (audio === "paused") {
+          if (audio === "stopped") {
             $$(".js-audio").forEach((audio) => {
               audio.pause()
               audio.currentTime = 0
@@ -233,8 +234,8 @@
       onChange(
         (state) => state.audio,
         (audio) => {
-          $(".js-play-pause-button").textContent =
-            audio === "paused" ? "Play" : "Pause"
+          $(".js-play-stop-button").textContent =
+            audio === "stopped" ? "Play" : "Stop"
         }
       )
 
@@ -245,7 +246,7 @@
           countdownSeconds: state.countdownSeconds,
         }),
         ({ audio, countdownSeconds }) => {
-          if (audio === "paused") {
+          if (audio === "stopped") {
             $(".js-countdown").textContent = ""
           }
 
@@ -273,7 +274,7 @@
       setInterval(() => {
         const state = store.get()
         if (state.audio === "playing" && state.countdownSeconds > 0) {
-          store.dispatch("second-elapsed")
+          store.dispatch("second-elapsed", { now: Date.now() })
         }
       }, 1000)
     </script>
