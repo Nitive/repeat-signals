@@ -131,7 +131,10 @@
 
         store.on("second-elapsed", (state, { now }) => ({
           ...state,
-          countdownSeconds: Math.round((state.countdownEndTime - now) / 1000),
+          countdownSeconds: Math.max(
+            0,
+            Math.round((state.countdownEndTime - now) / 1000)
+          ),
         }))
       }
 
