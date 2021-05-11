@@ -109,6 +109,7 @@
         <div class="js-countdown"></div>
       </div>
     </div>
+    <div class="js-errors"></div>
     <script type="module">
       import { createStoreon } from "https://unpkg.com/storeon@3.1.4/index.js"
 
@@ -313,6 +314,10 @@
           store.dispatch("second-elapsed", { now: Date.now() })
         }
       }, 1000)
+
+      window.addEventListener("error", (err) => {
+        $(".js-errors").innerHTML += `<p>${err.message}</p>`
+      })
     </script>
   </body>
 </html>
